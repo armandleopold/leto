@@ -41,7 +41,7 @@ Commits read:
 | Super Artemis | `465127d` | 2026-11-13 |
 | Super Artemis's moonlight-common-c (branch `super-artemis`) | `1578f05` | 2026-11-13 |
 | moonlight-common-c | `94c65fd` | 2026-11-13 |
-| moonlight-common-rust | `5a3aa1f` | 2026-11-17 |
+| moonlight-common-rust | `23bbe19` | 2026-11-21 |
 | moonlight-web-stream | `c1de423` (v3.0.2) | 2026-11-16 |
 | eframe_template | `f108546` | 2026-08-31 |
 
@@ -187,12 +187,13 @@ Decision: Leto's client core is built on moonlight-common-rust instead of
 porting moonlight-common-c a second time. Gaps that matter (AV1 first) are
 contributed upstream where possible.
 
-Found while building on it, at commit `5a3aa1f`. None of these is reported
-upstream yet:
+Found while building on it, at commit `5a3aa1f`, and still there at
+`23bbe19` unless said otherwise. None of these is reported upstream yet:
 
-- Its ready-made HTTPS clients accept any certificate. Leto has its own
-  transport that only accepts the certificate from pairing (see
-  [architecture.md](architecture.md)).
+- Up to `5a3aa1f`, its ready-made HTTPS clients accepted any certificate.
+  Since `23bbe19` its own HTTPS client only accepts the host's certificate
+  from pairing. Leto keeps its own transport anyway, which also never resumes
+  a TLS session (see [architecture.md](architecture.md)).
 - The client queues the end of the control connection ahead of the host's
   goodbye message, so the reason a host gives for ending a stream never
   reaches the application: every ending looks like a lost connection.

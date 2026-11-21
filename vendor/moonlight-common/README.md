@@ -2,9 +2,12 @@
 
 This is the protocol crate of
 [moonlight-common-rust](https://github.com/MrCreativ3001/moonlight-common-rust)
-at commit `5a3aa1f57bf70bb6a06c40bc435a18b2be44a252`, under its own licence,
-the GPL 3.0 or later (`LICENSE`). Leto used to take it from that commit with
-git; it is copied here because Leto needs a change the commit does not have.
+at commit `23bbe19d3bb760a5c659bfc9e0db16747beac878` (2026-11-19), under its
+own licence, the GPL 3.0 or later (`LICENSE`). Leto used to take it with git;
+it is copied here because Leto needs changes upstream does not have. It was
+first copied at `5a3aa1f`; the move to `23bbe19` brought upstream's new HTTPS
+clients (its own, on rustls, in place of ureq and hyper) and changes to its
+tokio driver, neither of which Leto uses.
 
 Only the crate itself is here: its source and licence. The C bindings, the
 examples and what its tests and examples need were left out of `Cargo.toml`.
