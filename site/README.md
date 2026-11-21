@@ -9,7 +9,8 @@ that touches this folder publishes it with GitHub Pages
   `style.css` repeats the brand colours. Change them together.
 - Screenshots are in `img/`, as WebP. They come from the stand-in host: say
   so in their caption.
-- The site is public even while the repository is private. It shows no code
-  and no link into this repository.
+- The download section is filled by `telecharger.js` from
+  `telechargements/version.json`, which `.github/workflows/pages.yml` writes
+  next to the files of the latest release. Nothing in `site/` holds them.
 - "Où en est Leto" only calls something tried on a real PC once it has been.
   Keep it in step with `docs/roadmap.md`.

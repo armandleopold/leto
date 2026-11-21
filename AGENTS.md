@@ -120,6 +120,17 @@ machine. The pipeline adds the address before it runs the tests.
 The Windows build is not part of `targets`: the Windows job of the pipeline
 builds and tests it for real.
 
+## Releases
+
+A release is a tag named after the workspace version in `Cargo.toml`:
+change the version, merge, then `git tag v0.0.2 && git push origin v0.0.2`
+(or run the Release workflow by hand with that tag). The Release workflow
+builds the app and `leto-cli` for Windows, Linux and macOS with the web
+client beside them, publishes them on GitHub with the source and
+`SHA256SUMS.txt`, then starts the Pages workflow, which puts the files of the
+latest release on leto.re for download. A tag that does not match the
+version stops it before anything is built.
+
 ## Where things go
 
 - `crates/`: everything Leto can do. Libraries, tested, no user interface.

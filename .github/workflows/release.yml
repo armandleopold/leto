@@ -1,0 +1,189 @@
+name: Release
+
+# Builds Leto for every platform there is a build for, publishes the builds
+# and the matching source code as a GitHub release, then publishes the site,
+# which serves the files of the latest release for download.
+#
+# Start it by pushing a tag named after the workspace version, for example
+# `git tag v0.0.2 && git push origin v0.0.2`, or by hand from the Actions tab
+# with that tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, for example v0.0.2 (made from main if it does not exist)"
+        required: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  # The tag has to say the version the crates carry, or the files would be
+  # named after one version and report another.
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        name: Compare the tag with the workspace version
+        run: |
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"$/\1/p' Cargo.toml)
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::The tag is $TAG but Cargo.toml says version $version. Tag v$version, or change the version first."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  web:
+    name: Web client
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen
+        run: |
+          version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          cargo install wasm-bindgen-cli --version "$version" --locked
+      - name: Build the web client
+        run: cargo xtask web
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web
+          path: dist/web
+          if-no-files-found: error
+
+  # Each archive holds the app, the command line and the web client in
+  # dist/web, where `leto-cli bridge` looks for it when started from the
+  # unpacked folder.
+  desktop:
+    name: Build (${{ matrix.name }})
+    needs: [version, web]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            platform: windows-x86_64
+            exe: .exe
+          # The oldest supported Ubuntu runner, so the build runs on as many
+          # distributions as it can (glibc is only ever compatible upwards).
+          - name: Linux
+            os: ubuntu-22.04
+            platform: linux-x86_64
+            exe: ""
+          - name: macOS
+            os: macos-latest
+            platform: macos-arm64
+            exe: ""
+    runs-on: ${{ matrix.os }}
+    env:
+      ARCHIVE: leto-${{ needs.version.outputs.version }}-${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # NASM gives the H.264 codec its fast routines. Without it decoding is
+      # several times slower, which a release should not be.
+      - name: Install NASM and the Linux headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes nasm libasound2-dev libudev-dev libclang-dev
+      - name: Install NASM
+        if: runner.os == 'macOS'
+        run: brew install nasm
+      - name: Install NASM
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --yes --no-progress
+          Add-Content $env:GITHUB_PATH "C:\Program Files\NASM"
+      - name: Build
+        run: cargo build --locked --release --package leto --package leto-cli
+      - uses: actions/download-artifact@v8
+        with:
+          name: web
+          path: ${{ env.ARCHIVE }}/dist/web
+      - name: Gather the files
+        shell: bash
+        run: |
+          cp "target/release/leto${{ matrix.exe }}" "target/release/leto-cli${{ matrix.exe }}" "$ARCHIVE/"
+          cp LICENSE "$ARCHIVE/LICENSE.txt"
+          cp .github/release/LISEZ-MOI.txt "$ARCHIVE/"
+      - name: Pack (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path $env:ARCHIVE -DestinationPath "$env:ARCHIVE.zip"
+      - name: Pack (tar.gz)
+        if: runner.os != 'Windows'
+        run: tar -czf "$ARCHIVE.tar.gz" "$ARCHIVE"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.platform }}
+          path: ${{ env.ARCHIVE }}.*
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    needs: [version, web, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - name: Gather the files
+        run: |
+          mkdir out
+          cp artifacts/windows-x86_64/* artifacts/linux-x86_64/* artifacts/macos-arm64/* out/
+          (cd artifacts/web && zip -qr "../../out/leto-$VERSION-web.zip" .)
+          # Leto is GPL-3.0 and includes GPL code of other projects, so
+          # whoever gets a build is offered the source it was built from.
+          git archive --format=tar.gz --prefix="leto-$VERSION/" -o "out/leto-$VERSION-source.tar.gz" HEAD
+          (cd out && sha256sum * > SHA256SUMS.txt)
+          ls -l out
+      - name: Create the release
+        run: |
+          if ! git rev-parse --verify --quiet "refs/tags/$TAG" > /dev/null; then
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+          fi
+          gh release create "$TAG" out/* --title "Leto $VERSION" --generate-notes --verify-tag
+
+  # A release made with the workflow's own token starts no other workflow,
+  # and the github-pages environment only takes deployments from main, not
+  # from a tag. So the site is published by starting its workflow on main.
+  site:
+    name: Publish the site
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Start the Pages workflow on main
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

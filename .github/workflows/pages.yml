@@ -1,11 +1,16 @@
 name: Pages
 
+# Publishes site/ with GitHub Pages, together with the files of the latest
+# release in site/telechargements, which the download section of the page
+# lists.
 on:
   push:
     branches: [main]
     paths:
       - "site/**"
       - ".github/workflows/pages.yml"
+  # The release workflow starts this one by hand after each release. Start
+  # it by hand too after a release made without that workflow.
   workflow_dispatch:
 
 permissions:
@@ -15,7 +20,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -23,14 +28,33 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
       - name: Keep only the site files
         run: |
           mkdir _site
           cp -r site/. _site/
           rm -f _site/README.md
-      - uses: actions/upload-pages-artifact@v3
+      # The newest release, pre-releases included. With none yet, the page
+      # says that there is nothing to download.
+      - name: Add the files of the latest release
+        run: |
+          tag=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq '.[0].tag_name // empty')
+          if [ -z "$tag" ]; then
+            echo "No release yet: nothing to download."
+            exit 0
+          fi
+          mkdir -p _site/telechargements
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir _site/telechargements
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '{
+            version: (.tag_name | ltrimstr("v")),
+            date: (.published_at[0:10]),
+            files: [.assets[] | {name, size}]
+          }' > _site/telechargements/version.json
+          cat _site/telechargements/version.json
+      - uses: actions/upload-pages-artifact@v5
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

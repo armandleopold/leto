@@ -1,0 +1,43 @@
+Leto
+====
+
+Leto réunit le bureau à distance et le jeu en streaming : une seule
+application pour atteindre un PC qui fait tourner Apollo ou Sunshine.
+https://leto.re
+
+Ce que contient ce dossier
+--------------------------
+
+- leto (leto.exe sous Windows) : l'application.
+- leto-cli (leto-cli.exe sous Windows) : la ligne de commande, et la
+  passerelle qui sert le client Web aux navigateurs.
+- dist/web : le client Web, que la passerelle envoie aux navigateurs.
+- LICENSE.txt : la licence, GPL-3.0. Le code source de cette version est
+  publié à côté de ce fichier, sous le nom leto-<version>-source.tar.gz.
+
+Démarrer
+--------
+
+1. Lancez leto. Il cherche vos PC sur le réseau.
+2. Choisissez votre PC, puis tapez dans Apollo ou Sunshine, sur le PC, le
+   code PIN que Leto affiche.
+3. Choisissez une application à lancer.
+
+Ctrl+Alt+Shift+Q rend la main pendant un flux.
+
+Depuis un navigateur : ouvrez un terminal dans ce dossier et lancez
+« leto-cli bridge ». Il affiche l'adresse à ouvrir et le code à donner au
+navigateur. Le navigateur prévient une fois que le certificat est celui de
+la passerelle : continuez.
+
+À savoir
+--------
+
+- Leto est en développement. Ce qui a été essayé sur un vrai PC est listé
+  sur https://leto.re, dans « Où en est Leto ».
+- Les fichiers ne sont pas signés. Windows SmartScreen peut prévenir au
+  premier lancement : « Informations complémentaires », puis « Exécuter
+  quand même ». Sous macOS : clic droit sur leto, puis « Ouvrir ».
+- La version macOS et la version Linux n'ont jamais été essayées à la main.
+- Sous Linux, le son passe par ALSA et les manettes par udev
+  (paquets libasound2 et libudev1, présents sur la plupart des systèmes).
